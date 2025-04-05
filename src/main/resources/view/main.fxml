@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.web.HTMLEditor?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.resend.mailclient.controller.MainController"
+      spacing="10"
+      styleClass="main-pane"
+      prefWidth="800"
+      prefHeight="600">
+
+    <MenuBar>
+        <Menu text="文件">
+            <MenuItem text="退出" onAction="#handleExit"/>
+        </Menu>
+    </MenuBar>
+
+    <GridPane hgap="10" vgap="10" styleClass="form-pane">
+        <Label text="发件人名称*:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+        <TextField fx:id="senderNameField" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+
+        <Label text="发件邮箱*:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+        <TextField fx:id="senderField" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+
+        <Label text="收件人*（多个用;分隔）:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+        <TextField fx:id="recipientField" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+
+        <Label text="主题*:" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+        <TextField fx:id="subjectField" GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+    </GridPane>
+
+    <HTMLEditor fx:id="htmlEditor" prefHeight="400"/>
+
+    <HBox spacing="10" styleClass="button-bar">
+        <Button text="发送邮件" onAction="#sendEmail" styleClass="send-button"/>
+        <Label fx:id="statusLabel" styleClass="status-label"/>
+    </HBox>
+</VBox>
