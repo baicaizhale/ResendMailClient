@@ -4,7 +4,7 @@ import java.io.*;
 import java.util.Properties;
 
 public class ConfigManager {
-    private static final String CONFIG_PATH = System.getProperty("user.home") + "/.resendmailclient/config.properties";
+    private static final File CONFIG_FILE = new File("mailclient.properties");
     private static final Properties prop = new Properties();
 
     static {
@@ -12,12 +12,7 @@ public class ConfigManager {
     }
 
     private static void loadConfig() {
-        File configFile = new File(CONFIG_PATH);
-        if (!configFile.getParentFile().exists()) {
-            configFile.getParentFile().mkdirs();
-        }
-
-        try (InputStream input = new FileInputStream(configFile)) {
+        try (InputStream input = new FileInputStream(CONFIG_FILE)) {
             prop.load(input);
         } catch (IOException e) {
             createDefaultConfig();
@@ -25,13 +20,13 @@ public class ConfigManager {
     }
 
     private static void createDefaultConfig() {
-        try (OutputStream output = new FileOutputStream(CONFIG_PATH)) {
+        try (OutputStream output = new FileOutputStream(CONFIG_FILE)) {
             prop.setProperty("api.key", "");
             prop.setProperty("sender.name", "MyApp");
             prop.setProperty("sender.email", "no-reply@example.com");
-            prop.store(output, "Resend Mail Client Configuration");
+            prop.store(output, "Mail Client Configuration");
         } catch (IOException e) {
-            System.err.println("创建配置文件失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -41,14 +36,10 @@ public class ConfigManager {
 
     public static void save(String key, String value) {
         prop.setProperty(key, value);
-        try (OutputStream output = new FileOutputStream(CONFIG_PATH)) {
+        try (OutputStream output = new FileOutputStream(CONFIG_FILE)) {
             prop.store(output, null);
         } catch (IOException e) {
-            System.err.println("保存配置失败: " + e.getMessage());
+            e.printStackTrace();
         }
-    }
-
-    public static String getConfigPath() {
-        return CONFIG_PATH;
     }
 }
