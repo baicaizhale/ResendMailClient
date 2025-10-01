@@ -31,8 +31,8 @@ import java.util.ResourceBundle;
 /**
  * 主控制器类，处理邮件客户端的主要功能
  */
-public class MainController {
-    private static final Logger logger = LogManager.getLogger(MainController.class);
+public class MainControllerFixed {
+    private static final Logger logger = LogManager.getLogger(MainControllerFixed.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // UI组件 - 邮件配置
@@ -418,11 +418,19 @@ public class MainController {
         String currentContent = htmlEditor.getHtmlText();
 
         // 将模板内容添加到当前内容
-        String newContent = currentContent.replace("<body contenteditable="true"></body>", 
-            "<body contenteditable="true">" + template.getHtmlContent() + "</body>");
+        // 更安全的处理方式：在body标签内的最后添加模板内容
+        String templateContent = template.getHtmlContent();
+        String bodyEndTag = "</body>";
 
-        htmlEditor.setHtmlText(newContent);
-        updateStatus("已添加模板内容");
+        if (currentContent.contains(bodyEndTag)) {
+            String newContent = currentContent.replace(bodyEndTag, templateContent + bodyEndTag);
+            htmlEditor.setHtmlText(newContent);
+            updateStatus("已添加模板内容");
+        } else {
+            // 如果找不到body结束标签，直接追加内容
+            htmlEditor.setHtmlText(currentContent + templateContent);
+            updateStatus("已添加模板内容（追加模式）");
+        }
     }
 
     /**
@@ -458,30 +466,46 @@ public class MainController {
      */
     @FXML
     private void handleSaveTemplate() {
-        String name = templateNameField.getText().trim();
-        String subject = templateSubjectField.getText().trim();
-        String content = templateHtmlEditor.getHtmlText();
+        try {
+            String name = templateNameField.getText();
+            String subject = templateSubjectField.getText();
+            String html = templateHtmlEditor.getHtmlText();
 
-        if (name.isEmpty()) {
-            showAlert(Alert.AlertType.ERROR, "错误", "模板名称不能为空");
-            return;
+            if (name.isEmpty()) {
+                showAlert(Alert.AlertType.ERROR, "错误", "模板名称不能为空");
+                return;
+            }
+
+            if (html.isEmpty()) {
+                showAlert(Alert.AlertType.ERROR, "错误", "模板内容不能为空");
+                return;
+            }
+
+            // 创建模板对象
+            EmailTemplate template = new EmailTemplate(name, subject, html);
+
+            // 保存模板
+            resendService.saveTemplate(template);
+
+            // 刷新模板列表
+            loadTemplates();
+
+            // 选择新保存的模板
+            for (int i = 0; i < templates.size(); i++) {
+                if (templates.get(i).getName().equals(name)) {
+                    templateListView.getSelectionModel().select(i);
+                    break;
+                }
+            }
+
+            updateStatus("模板已保存: " + name);
+            logger.info("模板已保存: {}", name);
+            showAlert(Alert.AlertType.INFORMATION, "成功", "模板已保存");
+        } catch (Exception e) {
+            logger.error("保存模板失败", e);
+            updateStatus("保存模板失败: " + e.getMessage());
+            showAlert(Alert.AlertType.ERROR, "错误", "保存模板失败: " + e.getMessage());
         }
-
-        if (subject.isEmpty()) {
-            showAlert(Alert.AlertType.ERROR, "错误", "模板主题不能为空");
-            return;
-        }
-
-        if (content.isEmpty() || content.equals("<html dir="ltr"><head></head><body contenteditable="true"></body></html>")) {
-            showAlert(Alert.AlertType.ERROR, "错误", "模板内容不能为空");
-            return;
-        }
-
-        EmailTemplate template = new EmailTemplate(name, subject, content);
-        templates.add(template);
-
-        updateStatus("模板已保存: " + name);
-        logger.info("模板已保存: {}", template);
     }
 
     /**
@@ -495,29 +519,28 @@ public class MainController {
             return;
         }
 
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("确认删除");
-        alert.setHeaderText(null);
-        alert.setContentText("确定要删除模板 "" + selectedTemplate.getName() + "" 吗？");
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("确认删除");
+        confirmAlert.setHeaderText("确定要删除模板 '" + selectedTemplate.getName() + "' 吗？");
+        confirmAlert.setContentText("此操作不可撤销。");
 
-        alert.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
-                templates.remove(selectedTemplate);
+        if (confirmAlert.showAndWait().get() == ButtonType.OK) {
+            try {
+                // 删除模板
+                resendService.deleteTemplate(selectedTemplate.getId());
+
+                // 刷新模板列表
+                loadTemplates();
+
                 updateStatus("模板已删除: " + selectedTemplate.getName());
-                logger.info("模板已删除: {}", selectedTemplate);
+                logger.info("模板已删除: {}", selectedTemplate.getName());
+                showAlert(Alert.AlertType.INFORMATION, "成功", "模板已删除");
+            } catch (Exception e) {
+                logger.error("删除模板失败", e);
+                updateStatus("删除模板失败: " + e.getMessage());
+                showAlert(Alert.AlertType.ERROR, "错误", "删除模板失败: " + e.getMessage());
             }
-        });
-    }
-
-    /**
-     * 刷新模板列表
-     */
-    @FXML
-    private void handleRefreshTemplates() {
-        // 重新加载模板
-        templates.clear();
-        loadTemplates();
-        updateStatus("模板列表已刷新");
+        }
     }
 
     /**
@@ -525,58 +548,153 @@ public class MainController {
      */
     @FXML
     private void handleRefreshHistory() {
-        updateStatus("邮件历史已刷新");
-        // 这里应该从文件或数据库加载历史记录
+        try {
+            // 获取最新的邮件历史
+            List<Email> latestHistory = resendService.getEmailHistory();
+            emailHistory.clear();
+            emailHistory.addAll(latestHistory);
+
+            updateStatus("邮件历史已刷新");
+            logger.info("邮件历史已刷新，共 {} 条记录", latestHistory.size());
+        } catch (Exception e) {
+            logger.error("刷新邮件历史失败", e);
+            updateStatus("刷新邮件历史失败: " + e.getMessage());
+            showAlert(Alert.AlertType.ERROR, "错误", "刷新邮件历史失败: " + e.getMessage());
+        }
     }
 
     /**
-     * 清空历史记录
+     * 清空邮件历史
      */
     @FXML
     private void handleClearHistory() {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("确认清空");
-        alert.setHeaderText(null);
-        alert.setContentText("确定要清空所有邮件历史记录吗？");
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("确认清空");
+        confirmAlert.setHeaderText("确定要清空所有邮件历史记录吗？");
+        confirmAlert.setContentText("此操作不可撤销。");
 
-        alert.showAndWait().ifPresent(response -> {
-            if (response == ButtonType.OK) {
+        if (confirmAlert.showAndWait().get() == ButtonType.OK) {
+            try {
+                // 清空邮件历史
+                resendService.clearEmailHistory();
+
+                // 刷新表格
                 emailHistory.clear();
+
                 updateStatus("邮件历史已清空");
                 logger.info("邮件历史已清空");
+                showAlert(Alert.AlertType.INFORMATION, "成功", "邮件历史已清空");
+            } catch (Exception e) {
+                logger.error("清空邮件历史失败", e);
+                updateStatus("清空邮件历史失败: " + e.getMessage());
+                showAlert(Alert.AlertType.ERROR, "错误", "清空邮件历史失败: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 刷新模板列表
+     */
+    @FXML
+    private void handleRefreshTemplates() {
+        try {
+            // 刷新模板列表
+            loadTemplates();
+
+            updateStatus("模板列表已刷新");
+            logger.info("模板列表已刷新，共 {} 个模板", templates.size());
+        } catch (Exception e) {
+            logger.error("刷新模板列表失败", e);
+            updateStatus("刷新模板列表失败: " + e.getMessage());
+            showAlert(Alert.AlertType.ERROR, "错误", "刷新模板列表失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 查看邮件
+     */
+    private void viewEmail(Email email) {
+        try {
+            // 创建预览窗口
+            Alert viewAlert = new Alert(Alert.AlertType.INFORMATION);
+            viewAlert.setTitle("查看邮件");
+            viewAlert.setHeaderText("主题: " + email.getSubject());
+
+            // 创建WebView用于预览HTML内容
+            javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
+            webView.getEngine().loadContent(email.getHtmlContent());
+            webView.setPrefSize(600, 400);
+
+            // 添加邮件信息
+            VBox contentBox = new VBox(10);
+            contentBox.getChildren().addAll(
+                new Label("收件人: " + String.join(", ", email.getTo())),
+                new Label("发送时间: " + email.getSentAt().format(DATE_FORMATTER)),
+                new Label("状态: " + email.getStatus()),
+                webView
+            );
+
+            viewAlert.getDialogPane().setContent(contentBox);
+            viewAlert.getButtonTypes().setAll(ButtonType.OK);
+
+            // 显示预览
+            viewAlert.showAndWait();
+            updateStatus("邮件预览已关闭");
+        } catch (Exception e) {
+            logger.error("查看邮件失败", e);
+            updateStatus("查看邮件失败: " + e.getMessage());
+            showAlert(Alert.AlertType.ERROR, "错误", "查看邮件失败: " + e.getMessage());
+        }
+    }
+
+    // ========== 事件处理 ==========
+
+    /**
+     * 处理状态更新事件
+     */
+    @Subscribe
+    public void onStatusUpdate(StatusUpdateEvent event) {
+        Platform.runLater(() -> {
+            updateStatus(event.getMessage());
+            if (event.isError()) {
+                showAlert(Alert.AlertType.ERROR, "错误", event.getMessage());
             }
         });
     }
 
     /**
-     * 查看邮件详情
+     * 处理邮件发送事件
      */
-    private void viewEmail(Email email) {
-        // 显示邮件详情的对话框
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("邮件详情");
-        alert.setHeaderText(email.getSubject());
-
-        VBox content = new VBox(10);
-        content.getChildren().addAll(
-            new Label("收件人: " + String.join(", ", email.getTo())),
-            new Label("发送时间: " + email.getSentAt().format(DATE_FORMATTER)),
-            new Label("状态: " + email.getStatus()),
-            new Separator(),
-            new Label("内容:"),
-            new Label(email.getHtmlContent())
-        );
-
-        alert.getDialogPane().setContent(content);
-        alert.showAndWait();
+    @Subscribe
+    public void onEmailSent(EmailSentEvent event) {
+        Platform.runLater(() -> {
+            if (event.isSuccess()) {
+                updateStatus("邮件发送成功: " + event.getEmail().getId());
+                showAlert(Alert.AlertType.INFORMATION, "成功", "邮件发送成功");
+            } else {
+                updateStatus("邮件发送失败: " + event.getErrorMessage());
+                showAlert(Alert.AlertType.ERROR, "错误", "邮件发送失败: " + event.getErrorMessage());
+            }
+        });
     }
+
+    /**
+     * 处理模板加载事件
+     */
+    @Subscribe
+    public void onTemplateLoaded(TemplateLoadedEvent event) {
+        Platform.runLater(() -> {
+            updateStatus("已加载模板: " + event.getTemplate().getName());
+        });
+    }
+
+    // ========== 辅助方法 ==========
 
     /**
      * 更新状态栏
      */
     private void updateStatus(String message) {
         Platform.runLater(() -> statusLabel.setText(message));
-        EventBus.getDefault().post(new StatusUpdateEvent(message));
     }
 
     /**
@@ -590,36 +708,5 @@ public class MainController {
             alert.setContentText(content);
             alert.showAndWait();
         });
-    }
-
-    /**
-     * 处理邮件发送事件
-     */
-    @Subscribe
-    public void onEmailSent(EmailSentEvent event) {
-        logger.info("收到邮件发送事件: {}", event.getEmail());
-    }
-
-    /**
-     * 处理状态更新事件
-     */
-    @Subscribe
-    public void onStatusUpdate(StatusUpdateEvent event) {
-        logger.info("收到状态更新事件: {}", event.getMessage());
-    }
-
-    /**
-     * 处理模板加载事件
-     */
-    @Subscribe
-    public void onTemplateLoaded(TemplateLoadedEvent event) {
-        logger.info("收到模板加载事件: {}", event.getTemplate());
-    }
-
-    /**
-     * 注销事件总线
-     */
-    public void cleanup() {
-        EventBus.getDefault().unregister(this);
     }
 }
