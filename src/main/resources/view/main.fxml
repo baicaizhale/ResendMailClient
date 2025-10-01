@@ -2,39 +2,135 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.web.HTMLEditor?>
+<?import javafx.geometry.Insets?>
 
 <VBox xmlns="http://javafx.com/javafx/17"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="org.resend.mailclient.controller.MainController"
-      spacing="10"
       styleClass="main-pane"
-      prefWidth="800"
-      prefHeight="600">
+      prefWidth="900"
+      prefHeight="700"
+      spacing="15">
 
-    <GridPane hgap="10" vgap="10">
-        <!-- 配置区域 -->
-        <Label text="API密钥:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
-        <TextField fx:id="apiKeyField" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
-
-        <Label text="发件人名称:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
-        <TextField fx:id="senderNameField" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
-
-        <Label text="发件邮箱:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
-        <TextField fx:id="senderEmailField" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
-
-        <!-- 邮件内容区域 -->
-        <Label text="收件人（多个用;分隔）:" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
-        <TextField fx:id="recipientField" GridPane.columnIndex="1" GridPane.rowIndex="3"/>
-
-        <Label text="主题:" GridPane.columnIndex="0" GridPane.rowIndex="4"/>
-        <TextField fx:id="subjectField" GridPane.columnIndex="1" GridPane.rowIndex="4"/>
-    </GridPane>
-
-    <HTMLEditor fx:id="htmlEditor" prefHeight="300"/>
-
+    <!-- 标题区域 -->
     <HBox spacing="10">
-        <Button text="保存配置" onAction="#handleSaveConfig"/>
-        <Button text="发送邮件" onAction="#handleSendEmail"/>
-        <Label fx:id="statusLabel"/>
+        <Label text="Resend邮件客户端" styleClass="title"/>
+        <Pane HBox.hgrow="ALWAYS"/>
+        <Button fx:id="themeToggle" text="切换主题" styleClass="button"/>
     </HBox>
+
+    <!-- 标签页 -->
+    <TabPane prefHeight="650" prefWidth="880" tabClosingPolicy="UNAVAILABLE">
+        <!-- 撰写邮件标签页 -->
+        <Tab text="撰写邮件">
+            <VBox spacing="15" styleClass="card">
+                <padding>
+                    <Insets top="15" right="15" bottom="15" left="15"/>
+                </padding>
+
+                <!-- 邮件配置区域 -->
+                <Label text="邮件配置" styleClass="title"/>
+                <GridPane hgap="15" vgap="10">
+                    <Label text="API密钥:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                    <PasswordField fx:id="apiKeyField" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                    <Button text="验证" onAction="#handleVerifyApiKey" styleClass="button button-primary" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+
+                    <Label text="发件人名称:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                    <TextField fx:id="senderNameField" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+
+                    <Label text="发件邮箱:" GridPane.columnIndex="0" GridPane.rowIndex="2"/>
+                    <TextField fx:id="senderEmailField" GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+
+                    <Label text="默认收件人:" GridPane.columnIndex="0" GridPane.rowIndex="3"/>
+                    <TextField fx:id="defaultRecipientField" GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+                </GridPane>
+
+                <Separator styleClass="separator"/>
+
+                <!-- 邮件内容区域 -->
+                <Label text="邮件内容" styleClass="title"/>
+                <GridPane hgap="15" vgap="10">
+                    <Label text="收件人（多个用;分隔）:" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+                    <TextField fx:id="recipientField" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+                    <Button text="从模板添加" onAction="#handleAddFromTemplate" styleClass="button button-primary" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+
+                    <Label text="主题:" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+                    <TextField fx:id="subjectField" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+                    <Button fx:id="templateButton" text="应用模板" onAction="#handleApplyTemplate" styleClass="button button-primary" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+                </GridPane>
+
+                <!-- 邮件编辑器 -->
+                <HTMLEditor fx:id="htmlEditor" prefHeight="300"/>
+
+                <!-- 操作按钮 -->
+                <HBox spacing="10" alignment="CENTER_RIGHT">
+                    <Button text="保存草稿" onAction="#handleSaveDraft" styleClass="button button-primary"/>
+                    <Button text="预览邮件" onAction="#handlePreviewEmail" styleClass="button button-success"/>
+                    <Button text="发送邮件" onAction="#handleSendEmail" styleClass="button button-success"/>
+                    <Label fx:id="statusLabel"/>
+                </HBox>
+            </VBox>
+        </Tab>
+
+        <!-- 邮件历史标签页 -->
+        <Tab text="邮件历史">
+            <VBox spacing="15" styleClass="card">
+                <padding>
+                    <Insets top="15" right="15" bottom="15" left="15"/>
+                </padding>
+
+                <HBox spacing="10">
+                    <Label text="邮件历史记录" styleClass="title"/>
+                    <Pane HBox.hgrow="ALWAYS"/>
+                    <Button text="刷新" onAction="#handleRefreshHistory" styleClass="button button-primary"/>
+                    <Button text="清空历史" onAction="#handleClearHistory" styleClass="button button-danger"/>
+                </HBox>
+
+                <TableView fx:id="emailHistoryTable" prefHeight="500">
+                    <columns>
+                        <TableColumn fx:id="statusColumn" text="状态" prefWidth="80"/>
+                        <TableColumn fx:id="subjectColumn" text="主题" prefWidth="200"/>
+                        <TableColumn fx:id="recipientColumn" text="收件人" prefWidth="200"/>
+                        <TableColumn fx:id="dateColumn" text="发送时间" prefWidth="150"/>
+                        <TableColumn fx:id="actionColumn" text="操作" prefWidth="100"/>
+                    </columns>
+                </TableView>
+            </VBox>
+        </Tab>
+
+        <!-- 模板管理标签页 -->
+        <Tab text="模板管理">
+            <VBox spacing="15" styleClass="card">
+                <padding>
+                    <Insets top="15" right="15" bottom="15" left="15"/>
+                </padding>
+
+                <HBox spacing="10">
+                    <Label text="邮件模板" styleClass="title"/>
+                    <Pane HBox.hgrow="ALWAYS"/>
+                    <Button text="新建模板" onAction="#handleNewTemplate" styleClass="button button-primary"/>
+                    <Button text="刷新" onAction="#handleRefreshTemplates" styleClass="button button-primary"/>
+                </HBox>
+
+                <SplitPane prefHeight="500" dividerPositions="0.3">
+                    <ListView fx:id="templateListView"/>
+                    <VBox spacing="10">
+                        <Label text="模板名称:" styleClass="label"/>
+                        <TextField fx:id="templateNameField"/>
+
+                        <Label text="模板主题:" styleClass="label"/>
+                        <TextField fx:id="templateSubjectField"/>
+
+                        <Label text="模板内容:" styleClass="label"/>
+                        <HTMLEditor fx:id="templateHtmlEditor" prefHeight="350"/>
+
+                        <HBox spacing="10" alignment="CENTER_RIGHT">
+                            <Button text="保存模板" onAction="#handleSaveTemplate" styleClass="button button-primary"/>
+                            <Button text="删除模板" onAction="#handleDeleteTemplate" styleClass="button button-danger"/>
+                        </HBox>
+                    </VBox>
+                </SplitPane>
+            </VBox>
+        </Tab>
+    </TabPane>
 </VBox>
