@@ -1,35 +1,52 @@
 package org.resend.mailclient.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 邮件模型类
+ * 邮件实体类，表示一封电子邮件
  */
 public class Email {
     private String id;
     private String fromName;
     private String fromEmail;
-    private List<String> to;
+    private List<String> recipients;
     private String subject;
     private String htmlContent;
     private LocalDateTime sentAt;
     private String status;
     private String errorMessage;
 
-    public Email() {}
+    /**
+     * 默认构造函数
+     */
+    public Email() {
+        this.recipients = new ArrayList<>();
+        this.sentAt = LocalDateTime.now();
+        this.status = "DRAFT";
+    }
 
-    public Email(String fromName, String fromEmail, List<String> to, String subject, String htmlContent) {
+    /**
+     * 带参数的构造函数
+     *
+     * @param fromName 发件人名称
+     * @param fromEmail 发件人邮箱
+     * @param recipients 收件人列表
+     * @param subject 邮件主题
+     * @param htmlContent 邮件HTML内容
+     */
+    public Email(String fromName, String fromEmail, List<String> recipients, String subject, String htmlContent) {
+        this();
         this.fromName = fromName;
         this.fromEmail = fromEmail;
-        this.to = to;
+        this.recipients = recipients;
         this.subject = subject;
         this.htmlContent = htmlContent;
-        this.sentAt = LocalDateTime.now();
-        this.status = "DRAFT"; // DRAFT, SENDING, SENT, FAILED
     }
 
     // Getters and Setters
+
     public String getId() {
         return id;
     }
@@ -54,12 +71,21 @@ public class Email {
         this.fromEmail = fromEmail;
     }
 
-    public List<String> getTo() {
-        return to;
+    public List<String> getRecipients() {
+        return recipients;
     }
 
-    public void setTo(List<String> to) {
-        this.to = to;
+    public void setRecipients(List<String> recipients) {
+        this.recipients = recipients;
+    }
+
+    /**
+     * 获取格式化的收件人列表，用于UI显示
+     *
+     * @return 以分号分隔的收件人列表
+     */
+    public String getFormattedRecipients() {
+        return recipients == null ? "" : String.join("; ", recipients);
     }
 
     public String getSubject() {
@@ -100,5 +126,15 @@ public class Email {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    @Override
+    public String toString() {
+        return "Email{" +
+                "id='" + id + '\'' +
+                ", subject='" + subject + '\'' +
+                ", status='" + status + '\'' +
+                ", sentAt=" + sentAt +
+                '}';
     }
 }

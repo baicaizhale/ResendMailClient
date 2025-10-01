@@ -41,15 +41,22 @@ public class ResendServiceNew {
      * 构造函数，初始化Resend客户端
      */
     public ResendServiceNew() {
-        String apiKey = ConfigManager.get("api.key");
-        if (apiKey != null && !apiKey.isEmpty()) {
-            this.resend = new Resend(apiKey);
-        } else {
-            logger.warn("API密钥未设置，将无法发送邮件");
-        }
-
         // 确保目录存在
         ensureDirectoriesExist();
+    }
+
+    /**
+     * 初始化或更新Resend客户端
+     * @param apiKey Resend API密钥
+     */
+    public void initializeResend(String apiKey) {
+        if (apiKey != null && !apiKey.isEmpty()) {
+            this.resend = new Resend(apiKey);
+            logger.info("Resend客户端已初始化");
+        } else {
+            this.resend = null;
+            logger.warn("API密钥未设置，Resend客户端未初始化");
+        }
     }
 
     /**

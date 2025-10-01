@@ -88,11 +88,11 @@ public class MainController {
         // 初始化模板列表
         setupTemplateListView();
 
-        // 加载模板数据
-        loadTemplates();
-
         // 设置默认值
         setDefaultValues();
+
+        // 加载模板数据
+        loadTemplates();
 
         logger.info("主控制器初始化完成");
     }
@@ -163,6 +163,9 @@ public class MainController {
         emailConfig.setSenderEmail(ConfigManager.get("sender.email"));
         emailConfig.setDefaultRecipient(ConfigManager.get("default.recipient"));
 
+        // 初始化Resend服务
+        resendService.initializeResend(emailConfig.getApiKey());
+
         // 更新UI
         Platform.runLater(() -> {
             apiKeyField.setText(emailConfig.getApiKey());
@@ -188,7 +191,9 @@ public class MainController {
         // 这里应该从文件或数据库加载模板
         // 目前使用示例数据
         EmailTemplate template1 = new EmailTemplate("欢迎邮件", "欢迎加入我们", "<h1>欢迎加入我们的平台</h1><p>尊敬的用户，感谢您的注册！</p>");
+        template1.setToRecipients(List.of("welcome@example.com"));
         EmailTemplate template2 = new EmailTemplate("订单确认", "您的订单已确认", "<h1>订单确认</h1><p>您的订单已确认，订单号：{orderNumber}</p>");
+        template2.setToRecipients(List.of("order@example.com"));
 
         templates.addAll(template1, template2);
     }
@@ -201,6 +206,11 @@ public class MainController {
             templateNameField.setText(template.getName());
             templateSubjectField.setText(template.getSubject());
             templateHtmlEditor.setHtmlText(template.getHtmlContent());
+            if (template.getToRecipients() != null && !template.getToRecipients().isEmpty()) {
+                templateRecipientField.setText(String.join(";", template.getToRecipients()));
+            } else {
+                templateRecipientField.clear();
+            }
 
             EventBus.getDefault().post(new TemplateLoadedEvent(template));
         }
@@ -224,41 +234,46 @@ public class MainController {
         ConfigManager.save("sender.email", emailConfig.getSenderEmail());
         ConfigManager.save("default.recipient", emailConfig.getDefaultRecipient());
 
+        // 如果API密钥发生变化，重新初始化Resend服务
+        String currentApiKey = apiKeyField.getText().trim();
+        if (!currentApiKey.equals(emailConfig.getApiKey())) {
+            emailConfig.setApiKey(currentApiKey);
+            resendService.initializeResend(currentApiKey);
+            updateStatus("API 密钥已更新，Resend 服务已重新初始化。");
+        }
+
+        // 更新默认收件人字段
+        emailConfig.setDefaultRecipient(defaultRecipientField.getText().trim());
+        ConfigManager.save("default.recipient", emailConfig.getDefaultRecipient());
+
         updateStatus("配置已保存！");
         logger.info("配置已保存: {}", emailConfig);
     }
 
     /**
-     * 验证API密钥
+     * 处理API密钥验证
      */
     @FXML
     private void handleVerifyApiKey() {
-        String apiKey = apiKeyField.getText().trim();
-        if (apiKey.isEmpty()) {
-            showAlert(Alert.AlertType.ERROR, "错误", "API密钥不能为空");
+        String apiKey = apiKeyField.getText();
+        // 实现 API 密钥验证逻辑
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            showAlert(Alert.AlertType.ERROR, "验证失败", "API 密钥不能为空。");
+            updateStatus("API 密钥验证失败：密钥为空。");
             return;
         }
 
-        new Thread(() -> {
-            try {
-                boolean isValid = resendService.verifyApiKey(apiKey);
-                Platform.runLater(() -> {
-                    if (isValid) {
-                        updateStatus("API密钥验证成功！");
-                        showAlert(Alert.AlertType.INFORMATION, "成功", "API密钥有效");
-                    } else {
-                        updateStatus("API密钥验证失败！");
-                        showAlert(Alert.AlertType.ERROR, "错误", "API密钥无效");
-                    }
-                });
-            } catch (Exception e) {
-                logger.error("API密钥验证失败", e);
-                Platform.runLater(() -> {
-                    updateStatus("API密钥验证出错: " + e.getMessage());
-                    showAlert(Alert.AlertType.ERROR, "错误", "验证API密钥时出错: " + e.getMessage());
-                });
-            }
-        }).start();
+        // 假设 API 密钥格式有效，进行初始化
+        try {
+            resendService.initializeResend(apiKey);
+            emailConfig.setApiKey(apiKey);
+            handleSaveConfig(); // 保存更新后的配置
+            updateStatus("API 密钥已验证，Resend 服务已初始化。");
+            showAlert(Alert.AlertType.INFORMATION, "验证成功", "API 密钥已成功验证并保存。");
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "验证失败", "初始化 Resend 服务失败: " + e.getMessage());
+            updateStatus("API 密钥验证失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -266,8 +281,10 @@ public class MainController {
      */
     @FXML
     private void handleSendEmail() {
-        if (apiKeyField.getText().isEmpty()) {
-            showAlert(Alert.AlertType.ERROR, "错误", "必须填写API密钥");
+        // 检查API密钥是否已设置
+        if (emailConfig.getApiKey() == null || emailConfig.getApiKey().trim().isEmpty()) {
+            showAlert(Alert.AlertType.ERROR, "发送失败", "请先在配置中设置并验证API密钥。");
+            updateStatus("邮件发送失败：API密钥未设置。");
             return;
         }
 
@@ -300,7 +317,7 @@ public class MainController {
         new Thread(() -> {
             try {
                 updateStatus("正在发送邮件...");
-                String emailId = resendService.sendEmail(fromName, fromEmail, to, subject, html);
+                String emailId = resendService.sendEmail(fromName, fromEmail, List.of(to.split(";")), subject, html);
 
                 // 更新邮件状态
                 email.setId(emailId);
@@ -333,6 +350,13 @@ public class MainController {
      */
     @FXML
     private void handleSaveDraft() {
+        // 检查API密钥是否已设置
+        if (emailConfig.getApiKey() == null || emailConfig.getApiKey().trim().isEmpty()) {
+            showAlert(Alert.AlertType.ERROR, "保存草稿失败", "请先在配置中设置并验证API密钥。");
+            updateStatus("保存草稿失败：API密钥未设置。");
+            return;
+        }
+
         try {
             // 创建邮件对象
             String fromName = senderNameField.getText();
@@ -405,24 +429,24 @@ public class MainController {
     }
 
     /**
-     * 从模板添加内容
+     * 从模板添加收件人
      */
     @FXML
     private void handleAddFromTemplate() {
-        if (templateListView.getSelectionModel().getSelectedItem() == null) {
-            showAlert(Alert.AlertType.WARNING, "提示", "请先选择一个模板");
-            return;
+        EmailTemplate selectedTemplate = templateListView.getSelectionModel().getSelectedItem();
+        if (selectedTemplate != null && selectedTemplate.getToRecipients() != null && !selectedTemplate.getToRecipients().isEmpty()) {
+            String currentRecipients = recipientField.getText().trim();
+            String newRecipients = String.join(";", selectedTemplate.getToRecipients());
+            if (currentRecipients.isEmpty()) {
+                recipientField.setText(newRecipients);
+            } else {
+                recipientField.setText(currentRecipients + ";" + newRecipients);
+            }
+            updateStatus("已从模板添加收件人。");
+        } else {
+            showAlert(Alert.AlertType.WARNING, "提示", "请先选择一个包含收件人的模板。");
+            updateStatus("从模板添加收件人失败：未选择模板或模板不包含收件人。");
         }
-
-        EmailTemplate template = templateListView.getSelectionModel().getSelectedItem();
-        String currentContent = htmlEditor.getHtmlText();
-
-        // 将模板内容添加到当前内容
-        String newContent = currentContent.replace("<body contenteditable="true"></body>", 
-            "<body contenteditable="true">" + template.getHtmlContent() + "</body>");
-
-        htmlEditor.setHtmlText(newContent);
-        updateStatus("已添加模板内容");
     }
 
     /**
@@ -436,8 +460,16 @@ public class MainController {
         }
 
         EmailTemplate template = templateListView.getSelectionModel().getSelectedItem();
+        
+        // 应用模板主题和内容
         subjectField.setText(template.getSubject());
         htmlEditor.setHtmlText(template.getHtmlContent());
+        
+        // 如果模板有收件人，则添加到收件人字段
+        if (template.getToRecipients() != null && !template.getToRecipients().isEmpty()) {
+            recipientField.setText(String.join(";", template.getToRecipients()));
+        }
+        
         updateStatus("已应用模板: " + template.getName());
     }
 
@@ -449,6 +481,7 @@ public class MainController {
         templateNameField.clear();
         templateSubjectField.clear();
         templateHtmlEditor.setHtmlText("");
+        templateRecipientField.clear(); // 清空收件人字段
         templateListView.getSelectionModel().clearSelection();
         updateStatus("已创建新模板");
     }
@@ -461,6 +494,7 @@ public class MainController {
         String name = templateNameField.getText().trim();
         String subject = templateSubjectField.getText().trim();
         String content = templateHtmlEditor.getHtmlText();
+        String recipients = templateRecipientField.getText().trim();
 
         if (name.isEmpty()) {
             showAlert(Alert.AlertType.ERROR, "错误", "模板名称不能为空");
@@ -472,12 +506,15 @@ public class MainController {
             return;
         }
 
-        if (content.isEmpty() || content.equals("<html dir="ltr"><head></head><body contenteditable="true"></body></html>")) {
+        if (content.isEmpty() || content.equals("<html dir=\"ltr\"><head></head><body contenteditable=\"true\"></body></html>")) {
             showAlert(Alert.AlertType.ERROR, "错误", "模板内容不能为空");
             return;
         }
 
         EmailTemplate template = new EmailTemplate(name, subject, content);
+        if (!recipients.isEmpty()) {
+            template.setToRecipients(List.of(recipients.split(";")));
+        }
         templates.add(template);
 
         updateStatus("模板已保存: " + name);
@@ -559,7 +596,7 @@ public class MainController {
 
         VBox content = new VBox(10);
         content.getChildren().addAll(
-            new Label("收件人: " + String.join(", ", email.getTo())),
+            new Label("收件人: " + email.getTo()),
             new Label("发送时间: " + email.getSentAt().format(DATE_FORMATTER)),
             new Label("状态: " + email.getStatus()),
             new Separator(),

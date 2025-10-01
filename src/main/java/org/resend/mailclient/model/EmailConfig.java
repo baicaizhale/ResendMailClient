@@ -1,7 +1,7 @@
 package org.resend.mailclient.model;
 
 /**
- * 邮件配置模型类
+ * 邮件配置实体类，用于存储应用程序配置信息
  */
 public class EmailConfig {
     private String apiKey;
@@ -9,15 +9,29 @@ public class EmailConfig {
     private String senderEmail;
     private String defaultRecipient;
 
-    public EmailConfig() {}
+    /**
+     * 默认构造函数
+     */
+    public EmailConfig() {
+    }
 
-    public EmailConfig(String apiKey, String senderName, String senderEmail) {
+    /**
+     * 带参数的构造函数
+     *
+     * @param apiKey Resend API密钥
+     * @param senderName 默认发件人名称
+     * @param senderEmail 默认发件人邮箱
+     * @param defaultRecipient 默认收件人
+     */
+    public EmailConfig(String apiKey, String senderName, String senderEmail, String defaultRecipient) {
         this.apiKey = apiKey;
         this.senderName = senderName;
         this.senderEmail = senderEmail;
+        this.defaultRecipient = defaultRecipient;
     }
 
     // Getters and Setters
+
     public String getApiKey() {
         return apiKey;
     }
@@ -48,5 +62,14 @@ public class EmailConfig {
 
     public void setDefaultRecipient(String defaultRecipient) {
         this.defaultRecipient = defaultRecipient;
+    }
+
+    @Override
+    public String toString() {
+        return "EmailConfig{" +
+                "senderName='" + senderName + '\'' +
+                ", senderEmail='" + senderEmail + '\'' +
+                ", defaultRecipient='" + defaultRecipient + '\'' +
+                '}';
     }
 }
